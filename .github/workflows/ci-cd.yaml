@@ -71,7 +71,7 @@ jobs:
       startsWith(github.ref, 'refs/tags/')
     with:
       workload-id-provider: projects/1094498259535/locations/global/workloadIdentityPools/gh-socket-exporter-tag/providers/github-by-repos
-      service-account: 'social-connect@devopsre.iam.gserviceaccount.com'
+      service-account: 'socket-exporter@devopsre.iam.gserviceaccount.com'
       artifact-registry: us-west1-docker.pkg.dev/devopsre/socket-exporter/socket-exporter
       tags: ${{ github.ref_name }}
       context: .
