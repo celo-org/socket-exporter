@@ -1,5 +1,5 @@
 ---
-name: CI/CD for image-annotator-webhook
+name: CI/CD for socket-exporter
     
 on:
   push:
@@ -32,14 +32,14 @@ jobs:
       - name: Login at GCP Artifact Registry
         uses: celo-org/reusable-workflows/.github/actions/auth-gcp-artifact-registry@main
         with:
-          workload-id-provider: 'projects/1094498259535/locations/global/workloadIdentityPools/gh-image-annotator-webhook/providers/github-by-repos'
-          service-account: 'image-annotator-webhook@devopsre.iam.gserviceaccount.com'
+          workload-id-provider: 'projects/1094498259535/locations/global/workloadIdentityPools/gh-socket-exporter-main/providers/github-by-repos'
+          service-account: 'socket-exporter@devopsre.iam.gserviceaccount.com'
           docker-gcp-registries: us-west1-docker.pkg.dev
       - name: Build and push container
         uses: celo-org/reusable-workflows/.github/actions/build-container@main
         with:
           platforms: linux/amd64,linux/arm64
-          registry: us-west1-docker.pkg.dev/devopsre/image-annotator-webhook/image-annotator-webhook
+          registry: us-west1-docker.pkg.dev/devopsre/socket-exporter/socket-exporter
           tag: ${{ github.sha }}
           context: .
           dockerfile: ./Dockerfile
