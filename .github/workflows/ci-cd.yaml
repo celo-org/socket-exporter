@@ -21,7 +21,7 @@ jobs:
           make build
 
   socket-exporter-build-dev:
-    uses: celo-org/reusable-workflows/.github/workflows/container-cicd.yaml@v1.12.3
+    uses: celo-org/reusable-workflows/.github/workflows/container-cicd.yaml@v1.14.1
     name: Build us-west1-docker.pkg.dev/devopsre/dev-images/socket-exporter
     needs: build
     permissions:
@@ -34,13 +34,13 @@ jobs:
       workload-id-provider: 'projects/1094498259535/locations/global/workloadIdentityPools/gh-socket-exporter/providers/github-by-repos'
       service-account: 'socket-exporter-dev@devopsre.iam.gserviceaccount.com'
       artifact-registry: us-west1-docker.pkg.dev/devopsre/dev-images/socket-exporter
-      tag: test
+      tags: test
       context: .
       file: ./Dockerfile
       trivy: true
 
   socket-exporter-build-main:
-    uses: celo-org/reusable-workflows/.github/workflows/container-cicd.yaml@v1.12.3
+    uses: celo-org/reusable-workflows/.github/workflows/container-cicd.yaml@v1.14.1
     name: Build us-west1-docker.pkg.dev/devopsre/socket-exporter/socket-exporter
     needs: build
     permissions:
@@ -53,13 +53,13 @@ jobs:
       workload-id-provider: 'projects/1094498259535/locations/global/workloadIdentityPools/gh-socket-exporter-main/providers/github-by-repos'
       service-account: 'socket-exporter@devopsre.iam.gserviceaccount.com'
       artifact-registry: us-west1-docker.pkg.dev/devopsre/socket-exporter/socket-exporter
-      tag: latest
+      tags: latest
       context: .
       file: ./Dockerfile
       trivy: true
 
   socket-exporter-build-tag:
-    uses: celo-org/reusable-workflows/.github/workflows/container-cicd.yaml@v1.12.3
+    uses: celo-org/reusable-workflows/.github/workflows/container-cicd.yaml@v1.14.1
     name: Build us-west1-docker.pkg.dev/devopsre/socket-exporter/socket-exporter tag
     needs: build
     permissions:
@@ -72,7 +72,7 @@ jobs:
       workload-id-provider: projects/1094498259535/locations/global/workloadIdentityPools/gh-socket-exporter/providers/github-by-repos
       service-account: 'social-connect@devopsre.iam.gserviceaccount.com'
       artifact-registry: us-west1-docker.pkg.dev/devopsre/socket-exporter/socket-exporter
-      tag: ${{ github.ref_name }}
+      tags: ${{ github.ref_name }}
       context: .
       file: ./Dockerfile
       trivy: true
