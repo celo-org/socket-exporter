@@ -19,29 +19,60 @@ jobs:
       - name: Build the project
         run: |
           make build
-    
-  container-build-and-push-sha:
-    runs-on: ubuntu-latest
+
+  socket-exporter-build-dev:
+    uses: celo-org/reusable-workflows/.github/workflows/container-cicd.yaml@v1.14.1
+    name: Build us-west1-docker.pkg.dev/devopsre/dev-images/socket-exporter
     needs: build
     permissions:
       contents: read
       id-token: write
       security-events: write
-    steps:
-      - uses: actions/checkout@v4
-      - name: Login at GCP Artifact Registry
-        uses: celo-org/reusable-workflows/.github/actions/auth-gcp-artifact-registry@main
-        with:
-          workload-id-provider: 'projects/1094498259535/locations/global/workloadIdentityPools/gh-socket-exporter-main/providers/github-by-repos'
-          service-account: 'socket-exporter@devopsre.iam.gserviceaccount.com'
-          docker-gcp-registries: us-west1-docker.pkg.dev
-      - name: Build and push container
-        uses: celo-org/reusable-workflows/.github/actions/build-container@main
-        with:
-          platforms: linux/amd64,linux/arm64
-          registry: us-west1-docker.pkg.dev/devopsre/socket-exporter/socket-exporter
-          tag: ${{ github.sha }}
-          context: .
-          dockerfile: ./Dockerfile
-          push: ${{ fromJSON(true) }}
-          load: ${{ fromJSON(false) }}
+    if: |
+      github.ref != 'refs/heads/main'
+    with:
+      workload-id-provider: 'projects/1094498259535/locations/global/workloadIdentityPools/gh-socket-exporter/providers/github-by-repos'
+      service-account: 'socket-exporter-dev@devopsre.iam.gserviceaccount.com'
+      artifact-registry: us-west1-docker.pkg.dev/devopsre/dev-images/socket-exporter
+      tags: test
+      context: .
+      file: ./Dockerfile
+      trivy: true
+
+  socket-exporter-build-main:
+    uses: celo-org/reusable-workflows/.github/workflows/container-cicd.yaml@v1.14.1
+    name: Build us-west1-docker.pkg.dev/devopsre/socket-exporter/socket-exporter
+    needs: build
+    permissions:
+      contents: read
+      id-token: write
+      security-events: write
+    if: |
+      github.ref == 'refs/heads/main'
+    with:
+      workload-id-provider: 'projects/1094498259535/locations/global/workloadIdentityPools/gh-socket-exporter-main/providers/github-by-repos'
+      service-account: 'socket-exporter@devopsre.iam.gserviceaccount.com'
+      artifact-registry: us-west1-docker.pkg.dev/devopsre/socket-exporter/socket-exporter
+      tags: latest
+      context: .
+      file: ./Dockerfile
+      trivy: true
+
+  socket-exporter-build-tag:
+    uses: celo-org/reusable-workflows/.github/workflows/container-cicd.yaml@v1.14.1
+    name: Build us-west1-docker.pkg.dev/devopsre/socket-exporter/socket-exporter tag
+    needs: build
+    permissions:
+      contents: read
+      id-token: write
+      security-events: write
+    if: |
+      startsWith(github.ref, 'refs/tags/socket-exporter-')
+    with:
+      workload-id-provider: projects/1094498259535/locations/global/workloadIdentityPools/gh-socket-exporter/providers/github-by-repos
+      service-account: 'social-connect@devopsre.iam.gserviceaccount.com'
+      artifact-registry: us-west1-docker.pkg.dev/devopsre/socket-exporter/socket-exporter
+      tags: ${{ github.ref_name }}
+      context: .
+      file: ./Dockerfile
+      trivy: true
