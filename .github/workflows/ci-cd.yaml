@@ -36,7 +36,7 @@ jobs:
       artifact-registry: us-west1-docker.pkg.dev/devopsre/dev-images/socket-exporter
       tag: test
       context: .
-      dockerfile: ./Dockerfile
+      file: ./Dockerfile
       trivy: true
 
   socket-exporter-build-main:
@@ -55,7 +55,7 @@ jobs:
       artifact-registry: us-west1-docker.pkg.dev/devopsre/socket-exporter/socket-exporter
       tag: latest
       context: .
-      dockerfile: ./Dockerfile
+      file: ./Dockerfile
       trivy: true
 
   socket-exporter-build-tag:
@@ -74,5 +74,5 @@ jobs:
       artifact-registry: us-west1-docker.pkg.dev/devopsre/socket-exporter/socket-exporter
       tag: ${{ github.ref_name }}
       context: .
-      dockerfile: ./Dockerfile
+      file: ./Dockerfile
       trivy: true
