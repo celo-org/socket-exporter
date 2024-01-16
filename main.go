@@ -171,7 +171,7 @@ func updateMetrics() {
 		metricSupplyChainRisk := map[string]interface{}{"name": npmResponse.Objects[i].Package.Name, "version": npmResponse.Objects[i].Package.Version, "score": "supplychainrisk", "value": socketResponse.Supplychainrisk.Score}
 		metricQuality := map[string]interface{}{"name": npmResponse.Objects[i].Package.Name, "version": npmResponse.Objects[i].Package.Version, "score": "quality", "value": socketResponse.Quality.Score}
 		metricMaintenance := map[string]interface{}{"name": npmResponse.Objects[i].Package.Name, "version": npmResponse.Objects[i].Package.Version, "score": "maintenance", "value": socketResponse.Maintenance.Score}
-		metricVulnerability := map[string]interface{}{"name": npmResponse.Objects[i].Package.Name, "version": npmResponse.Objects[i].Package.Version, "score": "vulneravility", "value": socketResponse.Vulnerability.Score}
+		metricVulnerability := map[string]interface{}{"name": npmResponse.Objects[i].Package.Name, "version": npmResponse.Objects[i].Package.Version, "score": "vulnerability", "value": socketResponse.Vulnerability.Score}
 		metricLicense := map[string]interface{}{"name": npmResponse.Objects[i].Package.Name, "version": npmResponse.Objects[i].Package.Version, "score": "license", "value": socketResponse.License.Score}
 		metricMiscellaneous := map[string]interface{}{"name": npmResponse.Objects[i].Package.Name, "version": npmResponse.Objects[i].Package.Version, "score": "miscellaneous", "value": socketResponse.Miscellaneous.Score}
 
