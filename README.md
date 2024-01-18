@@ -1,8 +1,8 @@
 # socket-dev-exporter
 
-A simple Prometheus exporter to expose [Socket.dev](https://socket.dev/) scores for `@celo` NPM packages written in go.
+A simple Prometheus exporter to expose [Socket.dev](https://socket.dev/) scores for the latest versions of `@celo` NPM packages written in go.
 
-This exporter exposes metrics in port `9101`, path `/metrics´, with the following format:
+This exporter exposes metrics in port `9101`, path `/metrics`, with the following format:
 
 ```txt
 # HELP socket_score Shows socket.dev packages scores
@@ -26,7 +26,7 @@ socket_score{package="@celo/0x-contracts",score="vulnerability",version="2.1.2-0
 
 ## Tests
 
-Tests can be found in [`main_tests.go](./main_test.go).
+Tests can be found in [`main_tests.go`](./main_test.go).
 
 ## CI/CD
 
