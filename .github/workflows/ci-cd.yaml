@@ -21,6 +21,9 @@ jobs:
       - name: Build the project
         run: |
           make build
+      - name: Run the test
+        run: |
+          make test
 
   socket-exporter-build-dev:
     uses: celo-org/reusable-workflows/.github/workflows/container-cicd.yaml@v1.14.1
