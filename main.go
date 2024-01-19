@@ -4,25 +4,27 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
 	"strconv"
 	"time"
 
+	"github.com/hashicorp/go-retryablehttp"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/sirupsen/logrus"
 )
 
 var initializing bool = true
-var client = http.Client{
-	Timeout: 5 * time.Second,
-}
+
+var retries int
+var timeout time.Duration
+
 var exportedMetrics = []map[string]interface{}{}
 
 var token string
-var periodEnvVar string
 var period time.Duration
 var port = 9101
 
@@ -128,6 +130,20 @@ func (collector *socketCollector) Collect(ch chan<- prometheus.Metric) {
 func updateMetrics() {
 
 	var npmResponse NpmResponse
+	retryClient := retryablehttp.NewClient()
+	retryClient.RetryMax = retries
+	retryClient.Logger = log.New(ioutil.Discard, "", log.LstdFlags)
+
+	retryClient.RequestLogHook = func(_ retryablehttp.Logger, req *http.Request, attempt int) {
+		logrus.WithFields(logrus.Fields{
+			"host":    req.URL.Host,
+			"path":    req.URL.Path,
+			"attempt": attempt,
+		}).Info("Sending request")
+	}
+
+	client := retryClient.StandardClient() // *http.Client
+	client.Timeout = timeout
 
 	logrus.Info("Sending request to registry.npmjs.org")
 	res, err := client.Get("https://registry.npmjs.org/-/v1/search?text=scope:celo&size=100")
@@ -222,7 +238,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	periodEnvVar, ok = os.LookupEnv("PERIOD")
+	periodEnvVar, ok := os.LookupEnv("PERIOD")
 	if !ok {
 		logrus.Error("Could not read env. var. PERIOD. Setting it to 24 hours.")
 		period, err = time.ParseDuration("24h")
@@ -232,6 +248,31 @@ func main() {
 			logrus.Error(fmt.Sprintf("Could not parse PERIOD env. var. to time.Duration: %s", err))
 			os.Exit(1)
 		}
+	}
+
+	retriesEnvVar, ok := os.LookupEnv("RETRIES")
+	if !ok {
+		logrus.Error("Could not read env. var. RETRIES. Setting it to 5.")
+		retries = 5
+	} else {
+		retries, err = strconv.Atoi(retriesEnvVar)
+		if err != nil {
+			logrus.Error(fmt.Sprintf("Could not parse RETRIES env. var. to int: %s", err))
+			os.Exit(1)
+		}
+	}
+
+	timeoutEnvVar, ok := os.LookupEnv("TIMEOUT")
+	if !ok {
+		logrus.Error("Could not read env. var. TIMEOUT. Setting it to 15 seconds.")
+		timeout = 15 * time.Second
+	} else {
+		timeoutInt, err := strconv.Atoi(timeoutEnvVar)
+		if err != nil {
+			logrus.Error(fmt.Sprintf("Could not parse TIMEOUT env. var. to int: %s", err))
+			os.Exit(1)
+		}
+		timeout = time.Duration(timeoutInt) * time.Second
 	}
 
 	socketCollector := newSocketCollector()
