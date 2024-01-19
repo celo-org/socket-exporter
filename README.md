@@ -23,6 +23,8 @@ socket_score{package="@celo/0x-contracts",score="vulnerability",version="2.1.2-0
 - `API_TOKEN` (REQUIRED): A [Socket.dev](https://socket.dev/) API token.
 - `LOG_LEVEL`: The [Logrus](https://github.com/sirupsen/logrus) log level. If not set, defaults to `info`.
 - `PERIOD`: The period to refresh the [Socket.dev](https://socket.dev/) scores, in hours. If not set, defaults to `24`.
+- `TIMEOUT`: The timeout for requests to [Socket.dev](https://socket.dev/), in seconds. If not set, defaults to `15`.
+- `RETRIES`: The number of retries for requests to [Socket.dev](https://socket.dev/). If not set, defaults to `5`.
 
 ## Tests
 
