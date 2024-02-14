@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -47,39 +46,6 @@ type NpmObject struct {
 
 type NpmResponse struct {
 	Objects []NpmObject `json:"objects"`
-}
-
-type SupplyChainRiskResponse struct {
-	Score float64 `json:"score"`
-}
-
-type QualityResponse struct {
-	Score float64 `json:"score"`
-}
-
-type MaintenanceResponse struct {
-	Score float64 `json:"score"`
-}
-
-type VulnerabilityResponse struct {
-	Score float64 `json:"score"`
-}
-
-type LicenseResponse struct {
-	Score float64 `json:"score"`
-}
-
-type MiscellaneousResponse struct {
-	Score float64 `json:"score"`
-}
-
-type SocketResponse struct {
-	Supplychainrisk SupplyChainRiskResponse `json:"supplyChainRisk"`
-	Quality         QualityResponse         `json:"quality"`
-	Maintenance     MaintenanceResponse     `json:"maintenance"`
-	Vulnerability   VulnerabilityResponse   `json:"vulnerability"`
-	License         LicenseResponse         `json:"license"`
-	Miscellaneous   MiscellaneousResponse   `json:"miscellaneous"`
 }
 
 // You must create a constructor for you collector that
@@ -158,22 +124,14 @@ func updateMetrics() {
 		return
 	}
 
+	var socketAPI = NewSocketAPI(token)
 	for i := range npmResponse.Objects {
-		logrus.Info(fmt.Sprintf("Requesting package %s/%s scores to api.socket.dev", npmResponse.Objects[i].Package.Name, npmResponse.Objects[i].Package.Version))
 
-		req, _ := http.NewRequest("GET", fmt.Sprintf("https://api.socket.dev/v0/npm/%s/%s/score", npmResponse.Objects[i].Package.Name, npmResponse.Objects[i].Package.Version), nil)
-		req.Header.Add("accept", "application/json")
-		req.Header.Add("Authorization", "Basic "+base64.StdEncoding.EncodeToString([]byte(token)))
-		res, err := client.Do(req)
-		if err != nil {
-			logrus.Error(fmt.Sprintf("Error requesting package %s to api.socket.dev: %s", npmResponse.Objects[i].Package.Name, err))
-			continue
-		}
+		var p = npmResponse.Objects[i].Package
 
-		var socketResponse SocketResponse
-		err = json.NewDecoder(res.Body).Decode(&socketResponse)
+		var socketResponse, err = socketAPI.FetchSocketScores(p, client)
 		if err != nil {
-			logrus.Error(fmt.Sprintf("Could not decode response body from api.socket.dev: %s", err))
+			logrus.WithFields(logrus.Fields{"package": p.Name}).Error("Failed to fetch score for package")
 			continue
 		}
 
@@ -184,12 +142,12 @@ func updateMetrics() {
 		logrus.Debug(fmt.Sprintf("Socket license score: %f", socketResponse.License.Score))
 		logrus.Debug(fmt.Sprintf("Socket miscellaneous score: %f", socketResponse.Miscellaneous.Score))
 
-		metricSupplyChainRisk := map[string]interface{}{"name": npmResponse.Objects[i].Package.Name, "version": npmResponse.Objects[i].Package.Version, "score": "supplychainrisk", "value": socketResponse.Supplychainrisk.Score}
-		metricQuality := map[string]interface{}{"name": npmResponse.Objects[i].Package.Name, "version": npmResponse.Objects[i].Package.Version, "score": "quality", "value": socketResponse.Quality.Score}
-		metricMaintenance := map[string]interface{}{"name": npmResponse.Objects[i].Package.Name, "version": npmResponse.Objects[i].Package.Version, "score": "maintenance", "value": socketResponse.Maintenance.Score}
-		metricVulnerability := map[string]interface{}{"name": npmResponse.Objects[i].Package.Name, "version": npmResponse.Objects[i].Package.Version, "score": "vulnerability", "value": socketResponse.Vulnerability.Score}
-		metricLicense := map[string]interface{}{"name": npmResponse.Objects[i].Package.Name, "version": npmResponse.Objects[i].Package.Version, "score": "license", "value": socketResponse.License.Score}
-		metricMiscellaneous := map[string]interface{}{"name": npmResponse.Objects[i].Package.Name, "version": npmResponse.Objects[i].Package.Version, "score": "miscellaneous", "value": socketResponse.Miscellaneous.Score}
+		metricSupplyChainRisk := map[string]interface{}{"name": p.Name, "version": p.Version, "score": "supplychainrisk", "value": socketResponse.Supplychainrisk.Score}
+		metricQuality := map[string]interface{}{"name": p.Name, "version": p.Version, "score": "quality", "value": socketResponse.Quality.Score}
+		metricMaintenance := map[string]interface{}{"name": p.Name, "version": p.Version, "score": "maintenance", "value": socketResponse.Maintenance.Score}
+		metricVulnerability := map[string]interface{}{"name": p.Name, "version": p.Version, "score": "vulnerability", "value": socketResponse.Vulnerability.Score}
+		metricLicense := map[string]interface{}{"name": p.Name, "version": p.Version, "score": "license", "value": socketResponse.License.Score}
+		metricMiscellaneous := map[string]interface{}{"name": p.Name, "version": p.Version, "score": "miscellaneous", "value": socketResponse.Miscellaneous.Score}
 
 		exportedMetrics = append(exportedMetrics, metricSupplyChainRisk)
 		exportedMetrics = append(exportedMetrics, metricQuality)
