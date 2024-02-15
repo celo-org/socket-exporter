@@ -31,7 +31,7 @@ var ch = make(chan prometheus.Metric)
 // Count that the number of metrics is greater than 1
 func TestCollectAndCount(t *testing.T) {
 
-	updateMetrics()
+	fetchMetrics()
 
 	number := testutil.CollectAndCount(collector, "socket_score")
 	if number < 1 {

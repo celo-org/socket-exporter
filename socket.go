@@ -78,5 +78,7 @@ func (s SocketAPI) FetchSocketScores(pack NpmPackage, client *http.Client) (Sock
 		return result, err
 	}
 
+	logrus.Debugf("socket.dev package score response: %v", result)
+
 	return result, nil
 }

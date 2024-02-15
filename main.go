@@ -96,13 +96,6 @@ func (collector *socketCollector) Collect(ch chan<- prometheus.Metric) {
 }
 
 func (s *SocketResponse) ToMetrics(packageName string, packageVersion string) []Metric {
-	logrus.Debugf("Socket supply chain risk score: %f", s.Supplychainrisk.Score)
-	logrus.Debugf("Socket quality score: %f", s.Quality.Score)
-	logrus.Debugf("Socket maintenance score: %f", s.Maintenance.Score)
-	logrus.Debugf("Socket vulnerability score: %f", s.Vulnerability.Score)
-	logrus.Debugf("Socket license score: %f", s.License.Score)
-	logrus.Debugf("Socket miscellaneous score: %f", s.Miscellaneous.Score)
-
 	metrics := []Metric{
 		Metric{"score": "supplychainrisk", "value": s.Supplychainrisk.Score},
 		Metric{"score": "quality", "value": s.Quality.Score},
@@ -120,7 +113,7 @@ func (s *SocketResponse) ToMetrics(packageName string, packageVersion string) []
 	return metrics
 }
 
-func updateMetrics() ([]Metric, error) {
+func fetchMetrics() ([]Metric, error) {
 	var npmResponse NpmResponse
 	retryClient := retryablehttp.NewClient()
 	retryClient.RetryMax = retries
@@ -141,13 +134,13 @@ func updateMetrics() ([]Metric, error) {
 	logrus.Info("Sending request to registry.npmjs.org")
 	res, err := client.Get("https://registry.npmjs.org/-/v1/search?text=scope:celo&size=100")
 	if err != nil {
-		logrus.Error(fmt.Sprintf("Error making http request to registry.npmjs.org: %s", err))
+		logrus.Errorf("Error making http request to registry.npmjs.org: %s", err)
 		return nil, err
 	}
 
 	err = json.NewDecoder(res.Body).Decode(&npmResponse)
 	if err != nil {
-		logrus.Error(fmt.Sprintf("Could not decode response body from registry.npmjs.org: %s", err))
+		logrus.Errorf("Could not decode response body from registry.npmjs.org: %s", err)
 		return nil, err
 	}
 
@@ -164,7 +157,7 @@ func updateMetrics() ([]Metric, error) {
 		}
 		socketScoreMetrics := socketResponse.ToMetrics(currentPackage.Name, currentPackage.Version)
 
-		//todo: implement npm download
+		//todo: implement npm download fetch
 
 		result = append(result, socketScoreMetrics...)
 	}
@@ -173,28 +166,17 @@ func updateMetrics() ([]Metric, error) {
 }
 
 func periodicLogic() {
-	if initializing {
-		metrics, err := updateMetrics()
+	logrus.Info("Getting metrics for socket.dev in a loop")
+	for {
+		metrics, err := fetchMetrics()
 		if err != nil {
-			logrus.Fatalf("Error upon initialization %e", err)
+			logrus.Errorf("Error upon fetching metrics %e", err)
+			continue
 		}
 		exportedMetrics = append(exportedMetrics, metrics...)
 
-		logrus.Info("Finished initialization")
-		initializing = false
-		return
-	} else {
-		logrus.Info("Getting metrics for socket.dev in a loop")
-		for {
-			logrus.Infof("Sleeping %f hours", period.Hours())
-			time.Sleep(period)
-
-			metrics, err := updateMetrics()
-			if err != nil {
-				logrus.Fatalf("Error upon initialization %e", err)
-			}
-			exportedMetrics = append(exportedMetrics, metrics...)
-		}
+		logrus.Infof("Sleeping %f hours", period.Hours())
+		time.Sleep(period)
 	}
 }
 
@@ -265,8 +247,13 @@ func main() {
 	http.Handle("/metrics", promhttp.Handler())
 
 	logrus.Info("Initializing, getting metrics for socket.dev")
-	periodicLogic()
-	logrus.Info("Start go rutine to get metrics for socket.dev")
+	metrics, err := fetchMetrics()
+	if err != nil {
+		logrus.Fatalf("Error upon initializing metrics %e", err)
+	}
+	exportedMetrics = append(exportedMetrics, metrics...)
+
+	logrus.Info("Start go routine to get metrics for socket.dev")
 	go periodicLogic()
 
 	logrus.Infof("Listening on port %d", port)
