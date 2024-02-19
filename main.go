@@ -15,7 +15,7 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-var initializing bool = true
+var initializing = true
 
 var retries int
 var timeout time.Duration
@@ -103,12 +103,12 @@ func (collector *socketCollector) Collect(ch chan<- prometheus.Metric) {
 
 func (s *SocketResponse) ToMetrics(packageName string, packageVersion string) []Metric {
 	metrics := []Metric{
-		Metric{"score": "supplychainrisk", "value": s.Supplychainrisk.Score},
-		Metric{"score": "quality", "value": s.Quality.Score},
-		Metric{"score": "maintenance", "value": s.Maintenance.Score},
-		Metric{"score": "vulnerability", "value": s.Vulnerability.Score},
-		Metric{"score": "license", "value": s.License.Score},
-		Metric{"score": "miscellaneous", "value": s.Miscellaneous.Score},
+		{"score": "supplychainrisk", "value": s.Supplychainrisk.Score},
+		{"score": "quality", "value": s.Quality.Score},
+		{"score": "maintenance", "value": s.Maintenance.Score},
+		{"score": "vulnerability", "value": s.Vulnerability.Score},
+		{"score": "license", "value": s.License.Score},
+		{"score": "miscellaneous", "value": s.Miscellaneous.Score},
 	}
 
 	for _, metric := range metrics {
@@ -122,7 +122,7 @@ func (s *SocketResponse) ToMetrics(packageName string, packageVersion string) []
 
 func (npm *NpmDownloadCountResponse) ToMetrics(packageName string) []Metric {
 	return []Metric{
-		Metric{"package": packageName, "downloads": npm.GetDownloads(), "date": npm.End, "_type": "npm_download"},
+		{"package": packageName, "downloads": npm.GetDownloads(), "date": npm.End, "_type": "npm_download"},
 	}
 }
 
