@@ -62,28 +62,30 @@ func (collector *socketCollector) Describe(ch chan<- *prometheus.Desc) {
 
 // Collect implements required collect function for all promehteus collectors
 func (collector *socketCollector) Collect(ch chan<- prometheus.Metric) {
-
-	logrus.Info("Received HTTP request")
+	logrus.Debug("Received HTTP request")
 	//Implement logic here to determine proper metric value to return to prometheus
 	//for each descriptor or call other functions that do so.
-	logrus.Info(fmt.Sprintf("Sending metrics to Prometheus channel"))
-	for i := range exportedMetrics {
-		s, err := strconv.ParseFloat(fmt.Sprintf("%v", exportedMetrics[i]["value"]), 64)
-		if err != nil {
-			logrus.Error(fmt.Sprintf("Error converting metric value: %s", err))
-			continue
+	logrus.Debug(fmt.Sprintf("Sending metrics to Prometheus channel"))
+	for _, metric := range exportedMetrics {
+		if metric["_type"] == "socket_score" {
+			s, err := strconv.ParseFloat(fmt.Sprintf("%v", metric["value"]), 64)
+			if err != nil {
+				logrus.Error(fmt.Sprintf("Error converting metric value: %s", err))
+				continue
+			}
+
+			ch <- prometheus.MustNewConstMetric(
+				collector.socketMetric,
+				prometheus.GaugeValue,
+				s,
+				fmt.Sprintf("%v", metric["name"]),
+				fmt.Sprintf("%v", metric["version"]),
+				fmt.Sprintf("%v", metric["score"]),
+			)
+		} else if metric["_type"] == "npm_download" {
+			logrus.Info("Hello")
 		}
-
-		ch <- prometheus.MustNewConstMetric(
-			collector.socketMetric,
-			prometheus.GaugeValue,
-			s,
-			fmt.Sprintf("%v", exportedMetrics[i]["name"]),
-			fmt.Sprintf("%v", exportedMetrics[i]["version"]),
-			fmt.Sprintf("%v", exportedMetrics[i]["score"]),
-		)
 	}
-
 }
 
 func (s *SocketResponse) ToMetrics(packageName string, packageVersion string) []Metric {
@@ -97,6 +99,7 @@ func (s *SocketResponse) ToMetrics(packageName string, packageVersion string) []
 	}
 
 	for _, metric := range metrics {
+		metric["_type"] = "socket_score"
 		metric["name"] = packageName
 		metric["version"] = packageVersion
 	}
@@ -104,17 +107,10 @@ func (s *SocketResponse) ToMetrics(packageName string, packageVersion string) []
 	return metrics
 }
 
-func (npm *NpmDownloadCountResponse) ToMetrics(packageName string, packageVersion string) []Metric {
-	metrics := []Metric{
-		Metric{"score": "supplychainrisk", "value": s.Supplychainrisk.Score},
+func (npm *NpmDownloadCountResponse) ToMetrics(packageName string) []Metric {
+	return []Metric{
+		Metric{"package": packageName, "downloads": npm.GetDownloads(), "date": npm.End, "_type": "npm_download_count"},
 	}
-
-	for _, metric := range metrics {
-		metric["name"] = packageName
-		metric["version"] = packageVersion
-	}
-
-	return metrics
 }
 
 func fetchMetrics() ([]Metric, error) {

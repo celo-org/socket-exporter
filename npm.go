@@ -32,6 +32,16 @@ type NpmDownloadCountResponse struct {
 	Downloads []NpmDownloadCounts `json:"downloads"`
 }
 
+func (npm *NpmDownloadCountResponse) GetDownloads() int {
+	if len(npm.Downloads) < 1 {
+		logrus.Errorf("Empty download count for %s", npm.Package)
+		return 0
+	}
+
+	firstDownload := npm.Downloads[0]
+	return firstDownload.Downloads
+}
+
 func GetDownloadCountForCeloNpmPackage(currentPackage NpmPackage, client *http.Client) (NpmDownloadCountResponse, error) {
 	var url = fmt.Sprintf("https://api.npmjs.org/downloads/range/last-day/@celo/%s", currentPackage.Name)
 	res, err := client.Get(url)
