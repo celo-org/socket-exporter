@@ -19,6 +19,7 @@ var initializing bool = true
 
 var retries int
 var timeout time.Duration
+var maxPackages = -1
 
 var exportedMetrics = []Metric{}
 
@@ -151,8 +152,9 @@ func fetchMetrics() ([]Metric, error) {
 	celoPackages := npmResponse.Objects
 	var socketAPI = NewSocketAPI(token)
 
-	//debug: remove me
-	celoPackages = celoPackages[0:5]
+	if maxPackages > 0 {
+		celoPackages = celoPackages[0:maxPackages]
+	}
 
 	for _, object := range celoPackages {
 		var currentPackage = object.Package
@@ -253,6 +255,20 @@ func initializeConfig() {
 			os.Exit(1)
 		}
 		timeout = time.Duration(timeoutInt) * time.Second
+	}
+
+	maxPackagesEnvVar, ok := os.LookupEnv("MAX_PACKAGES")
+	if !ok {
+		logrus.Error("Could not read env. var. MAX_PACKAGES. Deactivating")
+		maxPackages = -1
+	} else {
+		maxPackagesInt, err := strconv.Atoi(maxPackagesEnvVar)
+		if err != nil {
+			logrus.Error(fmt.Sprintf("Could not parse TIMEOUT env. var. to int: %s", err))
+			maxPackages = -1
+		}
+
+		maxPackages = maxPackagesInt
 	}
 }
 
