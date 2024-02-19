@@ -43,15 +43,14 @@ func (npm *NpmDownloadCountResponse) GetDownloads() int {
 }
 
 func GetDownloadCountForCeloNpmPackage(currentPackage NpmPackage, client *http.Client) (NpmDownloadCountResponse, error) {
-	var url = fmt.Sprintf("https://api.npmjs.org/downloads/range/last-day/@celo/%s", currentPackage.Name)
+	var result NpmDownloadCountResponse
+	var url = fmt.Sprintf("https://api.npmjs.org/downloads/range/last-day/%s", currentPackage.Name)
 	res, err := client.Get(url)
 
 	if err != nil {
 		logrus.Errorf("Error making http request to registry.npmjs.org: %s", err)
-		return nil, err
+		return result, err
 	}
-
-	var result NpmDownloadCountResponse
 
 	err = json.NewDecoder(res.Body).Decode(&result)
 	if err != nil {
@@ -70,13 +69,13 @@ func GetCeloNPMPackages(client *http.Client) (NpmResponse, error) {
 	res, err := client.Get("https://registry.npmjs.org/-/v1/search?text=scope:celo&size=100")
 	if err != nil {
 		logrus.Errorf("Error making http request to registry.npmjs.org: %s", err)
-		return nil, err
+		return npmResponse, err
 	}
 
 	err = json.NewDecoder(res.Body).Decode(&npmResponse)
 	if err != nil {
 		logrus.Errorf("Could not decode response body from registry.npmjs.org: %s", err)
-		return nil, err
+		return npmResponse, err
 	}
 
 	return npmResponse, nil

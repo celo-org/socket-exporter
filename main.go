@@ -139,6 +139,9 @@ func fetchMetrics() ([]Metric, error) {
 	celoPackages := npmResponse.Objects
 	var socketAPI = NewSocketAPI(token)
 
+	//debug: remove me
+	celoPackages = celoPackages[0:5]
+
 	for _, object := range celoPackages {
 		var currentPackage = object.Package
 
@@ -158,7 +161,7 @@ func fetchMetrics() ([]Metric, error) {
 			continue
 		}
 
-		packageDownloadMetrics := downloadResponse.ToMetrics(currentPackage.Name, currentPackage.Version)
+		packageDownloadMetrics := downloadResponse.ToMetrics(currentPackage.Name)
 		result = append(result, packageDownloadMetrics...)
 	}
 
