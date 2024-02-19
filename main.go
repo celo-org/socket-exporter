@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -34,20 +33,8 @@ type Metric map[string]interface{}
 // Note you can also include fields of other types if they provide utility
 // but we just won't be exposing them as metrics.
 type socketCollector struct {
-	socketMetric *prometheus.Desc
-}
-
-type NpmPackage struct {
-	Name    string
-	Version string
-}
-
-type NpmObject struct {
-	Package NpmPackage
-}
-
-type NpmResponse struct {
-	Objects []NpmObject `json:"objects"`
+	socketMetric   *prometheus.Desc
+	downloadMetric *prometheus.Desc
 }
 
 // You must create a constructor for you collector that
@@ -57,6 +44,10 @@ func newSocketCollector() *socketCollector {
 		socketMetric: prometheus.NewDesc("socket_score",
 			"Shows socket.dev packages scores",
 			[]string{"package", "version", "score"}, nil,
+		),
+		downloadMetric: prometheus.NewDesc("npm_download_count",
+			"NPM package download count for a given day",
+			[]string{"package", "downloads", "date"}, nil,
 		),
 	}
 }
@@ -113,8 +104,20 @@ func (s *SocketResponse) ToMetrics(packageName string, packageVersion string) []
 	return metrics
 }
 
+func (npm *NpmDownloadCountResponse) ToMetrics(packageName string, packageVersion string) []Metric {
+	metrics := []Metric{
+		Metric{"score": "supplychainrisk", "value": s.Supplychainrisk.Score},
+	}
+
+	for _, metric := range metrics {
+		metric["name"] = packageName
+		metric["version"] = packageVersion
+	}
+
+	return metrics
+}
+
 func fetchMetrics() ([]Metric, error) {
-	var npmResponse NpmResponse
 	retryClient := retryablehttp.NewClient()
 	retryClient.RetryMax = retries
 	retryClient.Logger = log.New(ioutil.Discard, "", log.LstdFlags)
@@ -131,16 +134,9 @@ func fetchMetrics() ([]Metric, error) {
 	client := retryClient.StandardClient() // *http.Client
 	client.Timeout = timeout
 
-	logrus.Info("Sending request to registry.npmjs.org")
-	res, err := client.Get("https://registry.npmjs.org/-/v1/search?text=scope:celo&size=100")
+	npmResponse, err := GetCeloNPMPackages(client)
 	if err != nil {
-		logrus.Errorf("Error making http request to registry.npmjs.org: %s", err)
-		return nil, err
-	}
-
-	err = json.NewDecoder(res.Body).Decode(&npmResponse)
-	if err != nil {
-		logrus.Errorf("Could not decode response body from registry.npmjs.org: %s", err)
+		logrus.Errorf("Failed to get list of celo packages, %e", err)
 		return nil, err
 	}
 
@@ -150,16 +146,24 @@ func fetchMetrics() ([]Metric, error) {
 	for _, object := range celoPackages {
 		var currentPackage = object.Package
 
-		var socketResponse, err = socketAPI.FetchSocketScores(currentPackage, client)
+		// get socket.dev metrics for package
+		socketResponse, err := socketAPI.FetchSocketScores(currentPackage, client)
 		if err != nil {
-			logrus.WithFields(logrus.Fields{"package": currentPackage.Name}).Error("Failed to fetch score for package")
+			logrus.Errorf("Failed to get socket score for package %s, %e", currentPackage.Name, err)
 			continue
 		}
 		socketScoreMetrics := socketResponse.ToMetrics(currentPackage.Name, currentPackage.Version)
-
-		//todo: implement npm download fetch
-
 		result = append(result, socketScoreMetrics...)
+
+		// get npm download metrics for package
+		downloadResponse, err := GetDownloadCountForCeloNpmPackage(currentPackage, client)
+		if err != nil {
+			logrus.Errorf("Failed to get download count for package %s, %e", currentPackage.Name, err)
+			continue
+		}
+
+		packageDownloadMetrics := downloadResponse.ToMetrics(currentPackage.Name, currentPackage.Version)
+		result = append(result, packageDownloadMetrics...)
 	}
 
 	return result, nil
@@ -171,6 +175,8 @@ func periodicLogic() {
 		metrics, err := fetchMetrics()
 		if err != nil {
 			logrus.Errorf("Error upon fetching metrics %e", err)
+			time.Sleep(1 * time.Second)
+
 			continue
 		}
 		exportedMetrics = append(exportedMetrics, metrics...)
