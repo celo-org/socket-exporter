@@ -15,8 +15,6 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-var initializing = true
-
 var retries int
 var timeout time.Duration
 var maxPackages = -1
@@ -59,6 +57,7 @@ func (collector *socketCollector) Describe(ch chan<- *prometheus.Desc) {
 
 	//Update this section with the each metric you create for a given collector
 	ch <- collector.socketMetric
+	ch <- collector.downloadMetric
 }
 
 // Collect implements required collect function for all promehteus collectors
@@ -66,7 +65,7 @@ func (collector *socketCollector) Collect(ch chan<- prometheus.Metric) {
 	logrus.Debug("Received HTTP request")
 	//Implement logic here to determine proper metric value to return to prometheus
 	//for each descriptor or call other functions that do so.
-	logrus.Debug(fmt.Sprintf("Sending metrics to Prometheus channel"))
+	logrus.Debug("Sending metrics to Prometheus channel")
 	for _, metric := range exportedMetrics {
 		if metric["_type"] == "socket_score" {
 			s, err := strconv.ParseFloat(fmt.Sprintf("%v", metric["value"]), 64)
@@ -264,7 +263,7 @@ func initializeConfig() {
 	} else {
 		maxPackagesInt, err := strconv.Atoi(maxPackagesEnvVar)
 		if err != nil {
-			logrus.Error(fmt.Sprintf("Could not parse TIMEOUT env. var. to int: %s", err))
+			logrus.Error(fmt.Sprintf("Could not parse MAX_PACKAGES env. var. to int: %s", err))
 			maxPackages = -1
 		}
 
