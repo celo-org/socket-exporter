@@ -1,8 +1,6 @@
 package main
 
 import (
-	"encoding/base64"
-	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -17,69 +15,25 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-var initializing bool = true
-
 var retries int
 var timeout time.Duration
+var maxPackages = -1
 
-var exportedMetrics = []map[string]interface{}{}
+var exportedMetrics = []Metric{}
 
 var token string
 var period time.Duration
 var port = 9101
+
+type Metric map[string]interface{}
 
 // Define a struct for you collector that contains pointers
 // to prometheus descriptors for each metric you wish to expose.
 // Note you can also include fields of other types if they provide utility
 // but we just won't be exposing them as metrics.
 type socketCollector struct {
-	socketMetric *prometheus.Desc
-}
-
-type NpmPackage struct {
-	Name    string
-	Version string
-}
-
-type NpmObject struct {
-	Package NpmPackage
-}
-
-type NpmResponse struct {
-	Objects []NpmObject `json:"objects"`
-}
-
-type SupplyChainRiskResponse struct {
-	Score float64 `json:"score"`
-}
-
-type QualityResponse struct {
-	Score float64 `json:"score"`
-}
-
-type MaintenanceResponse struct {
-	Score float64 `json:"score"`
-}
-
-type VulnerabilityResponse struct {
-	Score float64 `json:"score"`
-}
-
-type LicenseResponse struct {
-	Score float64 `json:"score"`
-}
-
-type MiscellaneousResponse struct {
-	Score float64 `json:"score"`
-}
-
-type SocketResponse struct {
-	Supplychainrisk SupplyChainRiskResponse `json:"supplyChainRisk"`
-	Quality         QualityResponse         `json:"quality"`
-	Maintenance     MaintenanceResponse     `json:"maintenance"`
-	Vulnerability   VulnerabilityResponse   `json:"vulnerability"`
-	License         LicenseResponse         `json:"license"`
-	Miscellaneous   MiscellaneousResponse   `json:"miscellaneous"`
+	socketMetric   *prometheus.Desc
+	downloadMetric *prometheus.Desc
 }
 
 // You must create a constructor for you collector that
@@ -90,6 +44,10 @@ func newSocketCollector() *socketCollector {
 			"Shows socket.dev packages scores",
 			[]string{"package", "version", "score"}, nil,
 		),
+		downloadMetric: prometheus.NewDesc("npm_download_count",
+			"NPM package download count for a given day",
+			[]string{"package"}, nil,
+		),
 	}
 }
 
@@ -99,41 +57,79 @@ func (collector *socketCollector) Describe(ch chan<- *prometheus.Desc) {
 
 	//Update this section with the each metric you create for a given collector
 	ch <- collector.socketMetric
+	ch <- collector.downloadMetric
 }
 
 // Collect implements required collect function for all promehteus collectors
 func (collector *socketCollector) Collect(ch chan<- prometheus.Metric) {
-
-	logrus.Info("Received HTTP request")
+	logrus.Debug("Received HTTP request")
 	//Implement logic here to determine proper metric value to return to prometheus
 	//for each descriptor or call other functions that do so.
-	logrus.Info(fmt.Sprintf("Sending metrics to Prometheus channel"))
-	for i := range exportedMetrics {
-		s, err := strconv.ParseFloat(fmt.Sprintf("%v", exportedMetrics[i]["value"]), 64)
-		if err != nil {
-			logrus.Error(fmt.Sprintf("Error converting metric value: %s", err))
-			continue
+	logrus.Debug("Sending metrics to Prometheus channel")
+	for _, metric := range exportedMetrics {
+		if metric["_type"] == "socket_score" {
+			s, err := strconv.ParseFloat(fmt.Sprintf("%v", metric["value"]), 64)
+			if err != nil {
+				logrus.Error(fmt.Sprintf("Error converting metric value: %s", err))
+				continue
+			}
+
+			ch <- prometheus.MustNewConstMetric(
+				collector.socketMetric,
+				prometheus.GaugeValue,
+				s,
+				fmt.Sprintf("%v", metric["name"]),
+				fmt.Sprintf("%v", metric["version"]),
+				fmt.Sprintf("%v", metric["score"]),
+			)
+		} else if metric["_type"] == "npm_download" {
+			s, err := strconv.ParseFloat(fmt.Sprintf("%v", metric["downloads"]), 64)
+			if err != nil {
+				logrus.Error(fmt.Sprintf("Error converting metric value: %s", err))
+				continue
+			}
+
+			ch <- prometheus.MustNewConstMetric(
+				collector.downloadMetric,
+				prometheus.GaugeValue,
+				s,
+				fmt.Sprintf("%v", metric["package"]),
+			)
 		}
-
-		ch <- prometheus.MustNewConstMetric(
-			collector.socketMetric,
-			prometheus.GaugeValue,
-			s,
-			fmt.Sprintf("%v", exportedMetrics[i]["name"]),
-			fmt.Sprintf("%v", exportedMetrics[i]["version"]),
-			fmt.Sprintf("%v", exportedMetrics[i]["score"]),
-		)
 	}
-
 }
 
-func updateMetrics() {
+func (s *SocketResponse) ToMetrics(packageName string, packageVersion string) []Metric {
+	metrics := []Metric{
+		{"score": "supplychainrisk", "value": s.Supplychainrisk.Score},
+		{"score": "quality", "value": s.Quality.Score},
+		{"score": "maintenance", "value": s.Maintenance.Score},
+		{"score": "vulnerability", "value": s.Vulnerability.Score},
+		{"score": "license", "value": s.License.Score},
+		{"score": "miscellaneous", "value": s.Miscellaneous.Score},
+	}
 
-	var npmResponse NpmResponse
+	for _, metric := range metrics {
+		metric["_type"] = "socket_score"
+		metric["name"] = packageName
+		metric["version"] = packageVersion
+	}
+
+	return metrics
+}
+
+func (npm *NpmDownloadCountResponse) ToMetrics(packageName string) []Metric {
+	return []Metric{
+		{"package": packageName, "downloads": npm.GetDownloads(), "date": npm.End, "_type": "npm_download"},
+	}
+}
+
+func fetchMetrics() ([]Metric, error) {
 	retryClient := retryablehttp.NewClient()
 	retryClient.RetryMax = retries
 	retryClient.Logger = log.New(ioutil.Discard, "", log.LstdFlags)
 
+	var result = []Metric{}
 	retryClient.RequestLogHook = func(_ retryablehttp.Logger, req *http.Request, attempt int) {
 		logrus.WithFields(logrus.Fields{
 			"host":    req.URL.Host,
@@ -145,79 +141,63 @@ func updateMetrics() {
 	client := retryClient.StandardClient() // *http.Client
 	client.Timeout = timeout
 
-	logrus.Info("Sending request to registry.npmjs.org")
-	res, err := client.Get("https://registry.npmjs.org/-/v1/search?text=scope:celo&size=100")
+	npmResponse, err := GetCeloNPMPackages(client)
 	if err != nil {
-		logrus.Error(fmt.Sprintf("Error making http request to registry.npmjs.org: %s", err))
-		return
+		logrus.Errorf("Failed to get list of celo packages, %e", err)
+		return nil, err
 	}
 
-	err = json.NewDecoder(res.Body).Decode(&npmResponse)
-	if err != nil {
-		logrus.Error(fmt.Sprintf("Could not decode response body from registry.npmjs.org: %s", err))
-		return
+	celoPackages := npmResponse.Objects
+	var socketAPI = NewSocketAPI(token)
+
+	if maxPackages > 0 {
+		celoPackages = celoPackages[0:maxPackages]
 	}
 
-	for i := range npmResponse.Objects {
-		logrus.Info(fmt.Sprintf("Requesting package %s/%s scores to api.socket.dev", npmResponse.Objects[i].Package.Name, npmResponse.Objects[i].Package.Version))
+	for _, object := range celoPackages {
+		var currentPackage = object.Package
 
-		req, _ := http.NewRequest("GET", fmt.Sprintf("https://api.socket.dev/v0/npm/%s/%s/score", npmResponse.Objects[i].Package.Name, npmResponse.Objects[i].Package.Version), nil)
-		req.Header.Add("accept", "application/json")
-		req.Header.Add("Authorization", "Basic "+base64.StdEncoding.EncodeToString([]byte(token)))
-		res, err := client.Do(req)
+		// get socket.dev metrics for package
+		socketResponse, err := socketAPI.FetchSocketScores(currentPackage, client)
 		if err != nil {
-			logrus.Error(fmt.Sprintf("Error requesting package %s to api.socket.dev: %s", npmResponse.Objects[i].Package.Name, err))
+			logrus.Errorf("Failed to get socket score for package %s, %e", currentPackage.Name, err)
+			continue
+		}
+		socketScoreMetrics := socketResponse.ToMetrics(currentPackage.Name, currentPackage.Version)
+		result = append(result, socketScoreMetrics...)
+
+		// get npm download metrics for package
+		downloadResponse, err := GetDownloadCountForCeloNpmPackage(currentPackage, client)
+		if err != nil {
+			logrus.Errorf("Failed to get download count for package %s, %e", currentPackage.Name, err)
 			continue
 		}
 
-		var socketResponse SocketResponse
-		err = json.NewDecoder(res.Body).Decode(&socketResponse)
-		if err != nil {
-			logrus.Error(fmt.Sprintf("Could not decode response body from api.socket.dev: %s", err))
-			continue
-		}
-
-		logrus.Debug(fmt.Sprintf("Socket supply chain risk score: %f", socketResponse.Supplychainrisk.Score))
-		logrus.Debug(fmt.Sprintf("Socket quality score: %f", socketResponse.Quality.Score))
-		logrus.Debug(fmt.Sprintf("Socket maintenance score: %f", socketResponse.Maintenance.Score))
-		logrus.Debug(fmt.Sprintf("Socket vulnerability score: %f", socketResponse.Vulnerability.Score))
-		logrus.Debug(fmt.Sprintf("Socket license score: %f", socketResponse.License.Score))
-		logrus.Debug(fmt.Sprintf("Socket miscellaneous score: %f", socketResponse.Miscellaneous.Score))
-
-		metricSupplyChainRisk := map[string]interface{}{"name": npmResponse.Objects[i].Package.Name, "version": npmResponse.Objects[i].Package.Version, "score": "supplychainrisk", "value": socketResponse.Supplychainrisk.Score}
-		metricQuality := map[string]interface{}{"name": npmResponse.Objects[i].Package.Name, "version": npmResponse.Objects[i].Package.Version, "score": "quality", "value": socketResponse.Quality.Score}
-		metricMaintenance := map[string]interface{}{"name": npmResponse.Objects[i].Package.Name, "version": npmResponse.Objects[i].Package.Version, "score": "maintenance", "value": socketResponse.Maintenance.Score}
-		metricVulnerability := map[string]interface{}{"name": npmResponse.Objects[i].Package.Name, "version": npmResponse.Objects[i].Package.Version, "score": "vulnerability", "value": socketResponse.Vulnerability.Score}
-		metricLicense := map[string]interface{}{"name": npmResponse.Objects[i].Package.Name, "version": npmResponse.Objects[i].Package.Version, "score": "license", "value": socketResponse.License.Score}
-		metricMiscellaneous := map[string]interface{}{"name": npmResponse.Objects[i].Package.Name, "version": npmResponse.Objects[i].Package.Version, "score": "miscellaneous", "value": socketResponse.Miscellaneous.Score}
-
-		exportedMetrics = append(exportedMetrics, metricSupplyChainRisk)
-		exportedMetrics = append(exportedMetrics, metricQuality)
-		exportedMetrics = append(exportedMetrics, metricMaintenance)
-		exportedMetrics = append(exportedMetrics, metricVulnerability)
-		exportedMetrics = append(exportedMetrics, metricLicense)
-		exportedMetrics = append(exportedMetrics, metricMiscellaneous)
+		packageDownloadMetrics := downloadResponse.ToMetrics(currentPackage.Name)
+		result = append(result, packageDownloadMetrics...)
 	}
 
+	return result, nil
 }
 
 func periodicLogic() {
-	if initializing {
-		updateMetrics()
-		logrus.Info("Finished initialization")
-		initializing = false
-		return
-	} else {
-		logrus.Info("Getting metrics for socket.dev in a loop")
-		for {
-			logrus.Info(fmt.Sprintf("Sleeping %f hours", period.Hours()))
-			time.Sleep(period)
-			updateMetrics()
+	logrus.Info("Getting metrics for socket.dev in a loop")
+	for {
+		metrics, err := fetchMetrics()
+		if err != nil {
+			logrus.Errorf("Error upon fetching metrics %e", err)
+			time.Sleep(1 * time.Second)
+
+			continue
 		}
+		exportedMetrics = metrics
+
+		logrus.Infof("Sleeping %f hours", period.Hours())
+		time.Sleep(period)
 	}
 }
 
-func main() {
+func initializeConfig() {
 	lvl, ok := os.LookupEnv("LOG_LEVEL")
 	if !ok {
 		lvl = "info"
@@ -275,15 +255,38 @@ func main() {
 		timeout = time.Duration(timeoutInt) * time.Second
 	}
 
+	maxPackagesEnvVar, ok := os.LookupEnv("MAX_PACKAGES")
+	if !ok {
+		logrus.Error("Could not read env. var. MAX_PACKAGES. Deactivating")
+		maxPackages = -1
+	} else {
+		maxPackagesInt, err := strconv.Atoi(maxPackagesEnvVar)
+		if err != nil {
+			logrus.Error(fmt.Sprintf("Could not parse MAX_PACKAGES env. var. to int: %s", err))
+			maxPackages = -1
+		}
+
+		maxPackages = maxPackagesInt
+	}
+}
+
+func main() {
+	initializeConfig()
+
 	socketCollector := newSocketCollector()
 	prometheus.MustRegister(socketCollector)
 	http.Handle("/metrics", promhttp.Handler())
 
 	logrus.Info("Initializing, getting metrics for socket.dev")
-	periodicLogic()
-	logrus.Info("Start go rutine to get metrics for socket.dev")
+	metrics, err := fetchMetrics()
+	if err != nil {
+		logrus.Fatalf("Error upon initializing metrics %e", err)
+	}
+	exportedMetrics = append(exportedMetrics, metrics...)
+
+	logrus.Info("Start go routine to get metrics for socket.dev")
 	go periodicLogic()
 
-	logrus.Info(fmt.Sprintf("Listening on port %d", port))
+	logrus.Infof("Listening on port %d", port)
 	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%d", port), nil))
 }

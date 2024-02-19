@@ -13,6 +13,9 @@ socket_score{package="@celo/0x-contracts",score="miscellaneous",version="2.1.2-0
 socket_score{package="@celo/0x-contracts",score="quality",version="2.1.2-0.0"} 0.6410426253533731
 socket_score{package="@celo/0x-contracts",score="supplychainrisk",version="2.1.2-0.0"} 0.39592272547306173
 socket_score{package="@celo/0x-contracts",score="vulnerability",version="2.1.2-0.0"} 0.25
+# HELP npm_download_count NPM package download count for a given day
+# TYPE npm_download_count gauge
+npm_download_count{date="2024-02-18",package="@celo/0x-contracts"} 180
 ...
 ```
 
@@ -25,6 +28,7 @@ socket_score{package="@celo/0x-contracts",score="vulnerability",version="2.1.2-0
 - `PERIOD`: The period to refresh the [Socket.dev](https://socket.dev/) scores, in hours. If not set, defaults to `24`.
 - `TIMEOUT`: The timeout for requests to [Socket.dev](https://socket.dev/), in seconds. If not set, defaults to `15`.
 - `RETRIES`: The number of retries for requests to [Socket.dev](https://socket.dev/). If not set, defaults to `5`.
+- `MAX_PACKAGES`: The maximum number of packages to fetch metrics for. If not set, limit is removed and all packages processed.
 
 ## Tests
 
