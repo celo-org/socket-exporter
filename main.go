@@ -47,7 +47,7 @@ func newSocketCollector() *socketCollector {
 		),
 		downloadMetric: prometheus.NewDesc("npm_download_count",
 			"NPM package download count for a given day",
-			[]string{"package", "downloads", "date"}, nil,
+			[]string{"package", "date"}, nil,
 		),
 	}
 }
@@ -83,7 +83,19 @@ func (collector *socketCollector) Collect(ch chan<- prometheus.Metric) {
 				fmt.Sprintf("%v", metric["score"]),
 			)
 		} else if metric["_type"] == "npm_download" {
-			logrus.Info("Hello")
+			s, err := strconv.ParseFloat(fmt.Sprintf("%v", metric["downloads"]), 64)
+			if err != nil {
+				logrus.Error(fmt.Sprintf("Error converting metric value: %s", err))
+				continue
+			}
+
+			ch <- prometheus.MustNewConstMetric(
+				collector.downloadMetric,
+				prometheus.GaugeValue,
+				s,
+				fmt.Sprintf("%v", metric["package"]),
+				fmt.Sprintf("%v", metric["date"]),
+			)
 		}
 	}
 }
@@ -109,7 +121,7 @@ func (s *SocketResponse) ToMetrics(packageName string, packageVersion string) []
 
 func (npm *NpmDownloadCountResponse) ToMetrics(packageName string) []Metric {
 	return []Metric{
-		Metric{"package": packageName, "downloads": npm.GetDownloads(), "date": npm.End, "_type": "npm_download_count"},
+		Metric{"package": packageName, "downloads": npm.GetDownloads(), "date": npm.End, "_type": "npm_download"},
 	}
 }
 
@@ -178,7 +190,7 @@ func periodicLogic() {
 
 			continue
 		}
-		exportedMetrics = append(exportedMetrics, metrics...)
+		exportedMetrics = metrics
 
 		logrus.Infof("Sleeping %f hours", period.Hours())
 		time.Sleep(period)
