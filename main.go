@@ -46,7 +46,7 @@ func newSocketCollector() *socketCollector {
 		),
 		downloadMetric: prometheus.NewDesc("npm_download_count",
 			"NPM package download count for a given day",
-			[]string{"package", "date"}, nil,
+			[]string{"package"}, nil,
 		),
 	}
 }
@@ -94,7 +94,6 @@ func (collector *socketCollector) Collect(ch chan<- prometheus.Metric) {
 				prometheus.GaugeValue,
 				s,
 				fmt.Sprintf("%v", metric["package"]),
-				fmt.Sprintf("%v", metric["date"]),
 			)
 		}
 	}
