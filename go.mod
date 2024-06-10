@@ -3,7 +3,7 @@ module socket-dev-exporter
 go 1.19
 
 require (
-	github.com/hashicorp/go-retryablehttp v0.7.6
+	github.com/hashicorp/go-retryablehttp v0.7.7
 	github.com/prometheus/client_golang v1.18.0
 	github.com/sirupsen/logrus v1.9.3
 )
